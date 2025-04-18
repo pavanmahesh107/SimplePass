@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimplePass Vault</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🔐</text></svg>">
+  <style>
+    :root {
+      --primary: #4CAF50;
+      --danger: #f44336;
+      --bg-light: #ffffff;
+      --bg-dark: #121212;
+      --text-light: #000000;
+      --text-dark: #ffffff;
+      --entry-bg-light: #f0f0f0;
+      --entry-bg-dark: #2c2c2c;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-light);
+      color: var(--text-light);
+      margin: 0;
+      padding: 0;
+      transition: all 0.3s ease;
+    }
+    body.dark-mode {
+      background-color: var(--bg-dark);
+      color: var(--text-dark);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background-color: var(--primary);
+      color: white;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 1.8rem;
+      margin-left: 0.5rem;
+    }
+    .header .logo {
+      font-size: 2rem;
+    }
+    .container {
+      max-width: 700px;
+      margin: 2rem auto;
+      background-color: var(--bg-light);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      transition: background-color 0.3s;
+    }
+    .container.dark-mode {
+      background-color: var(--entry-bg-dark);
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .top-bar button {
+      margin: 0.2rem;
+      padding: 0.4rem 1rem;
+      border: none;
+      border-radius: 8px;
+      background-color: var(--primary);
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .top-bar button:hover {
+      background-color: #388e3c;
+    }
+    .top-bar .danger {
+      background-color: var(--danger);
+    }
+    .top-bar .danger:hover {
+      background-color: #c62828;
+    }
+    input, textarea, button {
+      font-size: 1rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.6rem;
+      margin-top: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    .entry {
+      background-color: var(--entry-bg-light);
+      padding: 1rem;
+      margin-top: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+      transition: background 0.3s;
+    }
+    .dark-mode .entry {
+      background-color: var(--entry-bg-dark);
+    }
+    .actions button {
+      margin: 0.3rem;
+      background-color: #555;
+    }
+    .history, .expiry-warning {
+      font-size: 0.9rem;
+      color: #666;
+    }
+    .dark-mode .container input,
+    .dark-mode .container textarea {
+      background-color: #333;
+      color: white;
+      border: 1px solid #555;
+    }
+    .dark-mode-toggle {
+      background-color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">🔐</span>
+    <h1>SimplePass Vault</h1>
+  </div>
+  <div class="container" id="vaultContainer">
+    <div class="top-bar">
+      <h2>🔐 My Vault</h2>
+      <div>
+        <button class="danger" onclick="lockVault()">🔒 Lock</button>
+        <button onclick="exportPasswords()">📤 Export</button>
+        <button onclick="document.getElementById('importFile').click()">📥 Import</button>
+        <input type="file" id="importFile" accept=".json" style="display: none" onchange="importPasswords(event)">
+        <button class="dark-mode-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+      </div>
+    </div>
+    <input type="text" id="searchInput" placeholder="🔎 Search by website or username..." oninput="renderPasswords()">
+    <form id="passwordForm">
+      <input type="text" id="website" placeholder="🌐 Website" required>
+      <input type="text" id="username" placeholder="👤 Username" required>
+      <input type="password" id="password" placeholder="🔑 Password" required oninput="checkStrength(this.value)">
+      <input type="date" id="expiryDate" placeholder="📅 Expiry Date">
+      <textarea id="notes" placeholder="📝 Notes (optional)"></textarea>
+      <div id="strengthText"></div>
+      <button type="submit">➕ Add Password</button>
+    </form>
+    <div id="entries"></div>
+  </div>
+  <script>
+    let editingIndex = null;
+    const form = document.getElementById('passwordForm');
+    const entriesDiv = document.getElementById('entries');
+    const searchInput = document.getElementById('searchInput');
+
+    function getPasswords() {
+      return JSON.parse(localStorage.getItem('simplepass_data')) || [];
+    }
+
+    function savePasswords(data) {
+      localStorage.setItem('simplepass_data', JSON.stringify(data));
+    }
+
+    function renderPasswords() {
+      entriesDiv.innerHTML = '';
+      const data = getPasswords();
+      const query = searchInput.value.toLowerCase();
+      const filtered = data.filter(entry => entry.website.toLowerCase().includes(query) || entry.username.toLowerCase().includes(query));
+
+      filtered.forEach((entry, index) => {
+        const div = document.createElement('div');
+        div.className = 'entry';
+
+        const expiry = entry.expiryDate ? new Date(entry.expiryDate) : null;
+        const today = new Date();
+        let expiryWarning = '';
+        if (expiry) {
+          const daysLeft = Math.floor((expiry - today) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 0) {
+            expiryWarning = '<p class="expiry-warning" style="color:red;">⚠️ Password expired!</p>';
+          } else if (daysLeft <= 7) {
+            expiryWarning = `<p class="expiry-warning" style="color:orange;">⏳ Expires in ${daysLeft} day(s)</p>`;
+          }
+        }
+
+        let historyHtml = '';
+        if (entry.history && entry.history.length) {
+          historyHtml = '<div class="history"><strong>History:</strong><ul>' + entry.history.map(h => `<li>${h.date}: ${h.password}</li>`).join('') + '</ul></div>';
+        }
+
+        div.innerHTML = `
+          <p><strong>🌐 ${entry.website}</strong></p>
+          <p>👤 ${entry.username}</p>
+          <p>🔑 <span id="pass-${index}">••••••••</span></p>
+          ${expiryWarning}
+          <p>📝 ${entry.notes || ''}</p>
+          ${historyHtml}
+          <div class="actions">
+            <button id="toggle-btn-${index}" onclick="togglePassword(${index}, '${entry.password}')">👁️ Show</button>
+            <button onclick="copyToClipboard('${entry.password}')">📋 Copy</button>
+            <button onclick="deletePassword(${index})">🗑️ Delete</button>
+            <button onclick="editPassword(${index})">✏️ Edit</button>
+          </div>
+        `;
+        entriesDiv.appendChild(div);
+      });
+    }
+
+    function togglePassword(index, password) {
+      const span = document.getElementById(`pass-${index}`);
+      const btn = document.getElementById(`toggle-btn-${index}`);
+      const hidden = span.innerText === '••••••••';
+      span.innerText = hidden ? password : '••••••••';
+      btn.innerText = hidden ? '🙈 Hide' : '👁️ Show';
+    }
+
+    function copyToClipboard(password) {
+      navigator.clipboard.writeText(password).then(() => {
+        alert('📋 Copied! Clipboard will clear in 10 seconds.');
+        setTimeout(() => navigator.clipboard.writeText(''), 10000);
+      });
+    }
+
+    function deletePassword(index) {
+      if (!confirm('Are you sure?')) return;
+      const data = getPasswords();
+      data.splice(index, 1);
+      savePasswords(data);
+      renderPasswords();
+    }
+
+    function lockVault() {
+      window.location.href = 'index.html';
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const website = document.getElementById('website').value;
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const expiryDate = document.getElementById('expiryDate').value;
+      const notes = document.getElementById('notes').value;
+      const data = getPasswords();
+
+      const breached = ['123456', 'password', '123456789', 'qwerty', 'abc123'];
+      if (breached.includes(password.trim())) {
+        alert("⚠️ This password is known to be unsafe. Please choose a stronger one.");
+        return;
+      }
+
+      if (editingIndex !== null) {
+        const existing = data[editingIndex];
+        if (existing.password !== password) {
+          if (!existing.history) existing.history = [];
+          existing.history.push({ password: existing.password, date: new Date().toISOString().split('T')[0] });
+        }
+        data[editingIndex] = { ...existing, website, username, password, expiryDate, notes };
+        editingIndex = null;
+      } else {
+        data.push({ website, username, password, expiryDate, notes, history: [] });
+      }
+
+      savePasswords(data);
+      renderPasswords();
+      form.reset();
+      checkStrength("");
+    });
+
+    function editPassword(index) {
+      const entry = getPasswords()[index];
+      document.getElementById('website').value = entry.website;
+      document.getElementById('username').value = entry.username;
+      document.getElementById('password').value = entry.password;
+      document.getElementById('expiryDate').value = entry.expiryDate || '';
+      document.getElementById('notes').value = entry.notes || '';
+      editingIndex = index;
+      checkStrength(entry.password);
+    }
+
+    function toggleDarkMode() {
+      const dark = document.body.classList.toggle('dark-mode');
+      document.getElementById('vaultContainer').classList.toggle('dark-mode');
+      localStorage.setItem('dark-mode', dark ? 'enabled' : 'disabled');
+    }
+
+    if (localStorage.getItem('dark-mode') === 'enabled') {
+      toggleDarkMode();
+    }
+
+    function exportPasswords() {
+      const data = getPasswords();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'simplepass_backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importPasswords(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          const current = getPasswords();
+          const merged = [...current];
+          imported.forEach(newItem => {
+            if (!current.some(existing => existing.website === newItem.website && existing.username === newItem.username)) {
+              merged.push(newItem);
+            }
+          });
+          savePasswords(merged);
+          renderPasswords();
+        } catch (e) {
+          alert("❌ Invalid JSON file.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    let idleTimer;
+    const idleLimit = 5 * 60 * 1000;
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        alert("⏳ Inactive. Locking vault.");
+        lockVault();
+      }, idleLimit);
+    }
+    ['mousemove','keydown','click','touchstart'].forEach(e => document.addEventListener(e, resetIdleTimer));
+    resetIdleTimer();
+
+    function checkStrength(pwd) {
+      const txt = document.getElementById('strengthText');
+      let level = 'Weak', color = 'red';
+      if (/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/.test(pwd)) {
+        level = 'Strong'; color = 'green';
+      } else if (/^(?=.*[a-z])(?=.*[A-Z]|\d).{6,}$/.test(pwd)) {
+        level = 'Medium'; color = 'orange';
+      }
+      txt.innerText = pwd ? `Strength: ${level}` : '';
+      txt.style.color = color;
+    }
+
+    renderPasswords();
+  </script>
+</body>
+</html>

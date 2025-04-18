@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SimplePass - Lock</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🔐</text></svg>">
+  <style>
+    :root {
+      --primary: #4CAF50;
+      --bg-light: #ffffff;
+      --text-light: #000000;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f2f2f2;
+      color: var(--text-light);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background-color: var(--primary);
+      color: white;
+      width: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .header h1 {
+      font-size: 1.6rem;
+      margin-left: 0.5rem;
+    }
+    .header .logo {
+      font-size: 1.8rem;
+    }
+    .box {
+      background: var(--bg-light);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+    }
+    input, button {
+      padding: 0.6rem;
+      width: 100%;
+      margin-top: 1rem;
+      font-size: 1rem;
+      border-radius: 8px;
+    }
+    input {
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #388e3c;
+    }
+    .footer-note {
+      font-size: 0.8rem;
+      color: gray;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">🔐</span>
+    <h1>SimplePass Vault</h1>
+  </div>
+  <div class="box">
+    <h2>Welcome Back</h2>
+    <p>Please enter your PIN to unlock</p>
+    <input type="password" id="pinInput" placeholder="Enter PIN">
+    <button onclick="unlock()">Unlock</button>
+    <p class="footer-note">First time? Just enter a new PIN</p>
+  </div>
+
+  <script>
+    function unlock() {
+      const pin = document.getElementById('pinInput').value.trim();
+      const savedPin = localStorage.getItem('simplepass_pin');
+
+      if (!pin) {
+        alert("Please enter your PIN");
+        return;
+      }
+
+      if (!savedPin) {
+        localStorage.setItem('simplepass_pin', pin);
+        window.location.href = 'vault.html';
+      } else if (pin === savedPin) {
+        window.location.href = 'vault.html';
+      } else {
+        alert('❌ Incorrect PIN!');
+      }
+    }
+  </script>
+</body>
+</html>
