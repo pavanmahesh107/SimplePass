@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # 🔐 SimplePass Vault
 
 A simple, beautiful, and secure personal password vault. No backend. No signup. 100% offline.
